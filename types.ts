@@ -8,8 +8,8 @@ export interface UserProfile {
   gender: 'masculino' | 'femenino' | 'otro';
   activityLevel: 'sedentario' | 'ligero' | 'moderado' | 'intenso' | 'atleta';
   goal: 'perder_peso' | 'mantener_peso' | 'ganar_musculo';
-  weightLossTarget?: number; // 1-5 kg/mes
-  weightGainTarget?: number; // 1-5 kg/mes
+  weightLossTarget?: number;
+  weightGainTarget?: number;
   allergies: string;
   intolerances: string;
   considerations: string;
@@ -47,4 +47,25 @@ export interface MealEntry {
   type: 'desayuno' | 'almuerzo' | 'cena' | 'snack';
   description: string;
   nutrition: NutritionData;
+}
+
+export interface PantryItem {
+  id: string;
+  name: string;
+  category: string;
+}
+
+export interface GeneratedMealPlan {
+  desayunos: string[];
+  snacks: string[];
+  almuerzos: string[];
+  cenas: string[];
+  sugerenciasCompra: string[];
+}
+
+export interface MealPlanSession {
+  id: string;
+  date: string;
+  pantrySnapshot: string[];
+  plan: GeneratedMealPlan;
 }

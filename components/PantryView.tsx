@@ -1,0 +1,163 @@
+
+import React, { useState } from 'react';
+import { PantryItem, MealPlanSession, GeneratedMealPlan } from '../types';
+
+interface PantryViewProps {
+  pantry: PantryItem[];
+  onAdd: (name: string) => void;
+  onRemove: (id: string) => void;
+  onGenerate: () => Promise<void>;
+  isGenerating: boolean;
+  planHistory: MealPlanSession[];
+}
+
+const PantryView: React.FC<PantryViewProps> = ({ pantry, onAdd, onRemove, onGenerate, isGenerating, planHistory }) => {
+  const [newItem, setNewItem] = useState('');
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(planHistory.length > 0 ? planHistory[0].id : null);
+
+  const handleAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newItem.trim()) return;
+    onAdd(newItem.trim());
+    setNewItem('');
+  };
+
+  const activeSession = planHistory.find(s => s.id === selectedSessionId) || (planHistory.length > 0 ? planHistory[0] : null);
+  const mealPlan = activeSession?.plan || null;
+
+  return (
+    <div className="space-y-8 animate-in fade-in duration-700">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Lado Izquierdo: Gestión de Inventario NutriChef */}
+        <div className="space-y-6">
+          <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm">
+            <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-2">
+              <span className="text-2xl">👨‍🍳</span> NutriChef
+            </h3>
+            
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Añadir lo que compraste:</p>
+            <form onSubmit={handleAdd} className="flex gap-2 mb-6">
+              <input 
+                type="text" 
+                value={newItem}
+                onChange={(e) => setNewItem(e.target.value)}
+                placeholder="Ej: Pechuga de pollo, Arroz..."
+                className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-900 outline-none focus:ring-2 focus:ring-emerald-500 transition-all placeholder:text-slate-400"
+              />
+              <button type="submit" className="bg-slate-900 text-white p-3 rounded-2xl hover:bg-emerald-600 transition-all">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" /></svg>
+              </button>
+            </form>
+
+            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 no-scrollbar border-b border-slate-100 pb-4">
+              {pantry.length === 0 ? (
+                <p className="text-center py-10 text-slate-400 italic font-medium">Tu inventario está vacío. Registra los productos de tu mercado.</p>
+              ) : (
+                pantry.map(item => (
+                  <div key={item.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl group hover:bg-emerald-50 transition-all">
+                    <span className="font-bold text-slate-900">{item.name}</span>
+                    <button onClick={() => onRemove(item.id)} className="text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <button 
+              onClick={onGenerate}
+              disabled={isGenerating || pantry.length === 0}
+              className="w-full mt-6 bg-emerald-600 text-white py-4 rounded-[30px] font-black shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all disabled:opacity-50 uppercase tracking-widest text-xs"
+            >
+              {isGenerating ? 'Chef IA Cocinando...' : 'Generar Nuevo Menú Modular'}
+            </button>
+          </div>
+
+          {/* Historial de Sesiones / Mercados */}
+          {planHistory.length > 0 && (
+            <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm">
+              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Historial de Mercados</h4>
+              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 no-scrollbar">
+                {planHistory.map(session => (
+                  <button
+                    key={session.id}
+                    onClick={() => setSelectedSessionId(session.id)}
+                    className={`w-full text-left p-4 rounded-2xl border transition-all ${
+                      selectedSessionId === session.id 
+                      ? 'border-emerald-500 bg-emerald-50' 
+                      : 'border-slate-100 hover:border-slate-200 bg-slate-50'
+                    }`}
+                  >
+                    <p className={`text-xs font-black ${selectedSessionId === session.id ? 'text-emerald-700' : 'text-slate-600'}`}>
+                      Sesión: {session.date}
+                    </p>
+                    <p className="text-[10px] text-slate-400 font-medium mt-1 truncate">
+                      {session.pantrySnapshot.length} ingredientes registrados
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Lado Derecho: Plan de Menú y Sugerencias de NutriChef */}
+        <div className="lg:col-span-2 space-y-6">
+          {!mealPlan ? (
+            <div className="h-full min-h-[500px] bg-slate-100/50 rounded-[40px] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center p-12 text-center">
+              <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center text-4xl shadow-sm mb-6 animate-bounce">🥘</div>
+              <h4 className="text-xl font-black text-slate-800">NutriChef IA</h4>
+              <p className="text-slate-500 font-medium max-w-sm mt-2">
+                Ingresa lo que tienes en tu cocina y NutriChef diseñará combinaciones infinitas que respetan tus macros.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
+              <div className="bg-amber-50 border border-amber-100 p-8 rounded-[40px]">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-amber-800 font-black flex items-center gap-2">
+                    <span className="text-xl">🛒</span> Sugerencias de Compra Inteligente
+                  </h4>
+                  <span className="text-[10px] font-black text-amber-600 bg-white px-3 py-1 rounded-full border border-amber-200">
+                    Visto en: {activeSession?.date}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {mealPlan.sugerenciasCompra.map((sug, i) => (
+                    <span key={i} className="bg-white px-4 py-2 rounded-full text-xs font-black text-amber-700 shadow-sm border border-amber-200">
+                      + {sug}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {[
+                  { title: 'Desayunos Intercambiables', icon: '🍳', list: mealPlan.desayunos, color: 'emerald' },
+                  { title: 'Snacks Balanceados', icon: '🍎', list: mealPlan.snacks, color: 'rose' },
+                  { title: 'Almuerzos Poderosos', icon: '🥗', list: mealPlan.almuerzos, color: 'blue' },
+                  { title: 'Cenas Ligeras', icon: '🍛', list: mealPlan.cenas, color: 'indigo' }
+                ].map(cat => (
+                  <div key={cat.title} className="bg-white p-6 rounded-[40px] border border-slate-200 shadow-sm">
+                    <h5 className={`text-${cat.color}-600 font-black flex items-center gap-2 mb-4 uppercase text-[10px] tracking-widest`}>
+                      <span>{cat.icon}</span> {cat.title}
+                    </h5>
+                    <div className="space-y-3">
+                      {cat.list.map((meal, idx) => (
+                        <div key={idx} className="p-3 bg-slate-50 rounded-2xl text-[11px] font-bold text-slate-800 leading-relaxed border border-transparent hover:border-slate-200 transition-all">
+                          <span className="text-slate-400 mr-2">{idx + 1}.</span> {meal}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default PantryView;
