@@ -5,7 +5,7 @@ import ProfileForm from './components/ProfileForm';
 import Dashboard from './components/Dashboard';
 import HistoryView from './components/HistoryView';
 import MeasurementsView from './components/MeasurementsView';
-import { analyzeMeal, getCoachAdvice } from './services/geminiService';
+import { analyzeMeal, getCoachAdvice, getDailyAnalysis } from './services/geminiService';
 
 const App: React.FC = () => {
   const [profile, setProfile] = useState<UserProfile | null>(() => {
@@ -52,6 +52,7 @@ const App: React.FC = () => {
   const stats = useMemo(() => {
     if (!profile) return null;
     
+    // 1. Mifflin-St Jeor BMR (Más preciso)
     let bmr = (10 * profile.weight) + (6.25 * profile.height) - (5 * profile.age);
     bmr = profile.gender === 'masculino' ? bmr + 5 : bmr - 161;
 
@@ -64,10 +65,8 @@ const App: React.FC = () => {
       atleta: 1.9
     };
 
-    const currentMultiplier = isExerciseDay 
-      ? activityMultipliers[profile.activityLevel] 
-      : 1.2;
-
+    // Dinamismo: Si hoy NO entrenó, bajamos al factor sedentario. Si entrenó, usamos su factor perfil.
+    const currentMultiplier = isExerciseDay ? activityMultipliers[profile.activityLevel] : 1.2;
     const tdee = bmr * currentMultiplier;
     
     let targetCalories = tdee;
@@ -81,15 +80,20 @@ const App: React.FC = () => {
       targetCalories = tdee + dailySurplus;
     }
 
-    // LÍMITE DE SEGURIDAD NUTRICIONAL
-    const minSafeCalories = profile.gender === 'masculino' ? 1500 : 1200;
-    const isSafeLimited = targetCalories < minSafeCalories && profile.goal === 'perder_peso';
-    targetCalories = Math.max(targetCalories, minSafeCalories);
+    // LÍMITE DE SEGURIDAD PERSONALIZADO
+    // Nunca bajar de BMR (funciones vitales) o de un déficit del 25% del mantenimiento (TDEE)
+    const safetyFloor = Math.max(bmr * 0.95, tdee * 0.75);
+    const isSafeLimited = targetCalories < safetyFloor && profile.goal === 'perder_peso';
+    targetCalories = Math.max(targetCalories, safetyFloor);
 
-    const targetProtein = profile.weight * 2;
+    // Ajuste de Macros
+    // Proteína: Alta para preservar músculo (2.2g x kg)
+    const targetProtein = profile.weight * 2.2;
+    // Grasas: Salud hormonal (0.8g x kg)
     const targetFat = profile.weight * 0.8;
     const proteinCals = targetProtein * 4;
     const fatCals = targetFat * 9;
+    // Carbos: Combustible dinámico
     const targetCarbs = Math.max(0, (targetCalories - proteinCals - fatCals) / 4);
 
     return { 
@@ -151,6 +155,24 @@ const App: React.FC = () => {
     }
   }, [profile, meals, measurements]);
 
+  const requestDailyAnalysis = async () => {
+    const dayMeals = meals.filter(m => m.date === selectedDate);
+    if (dayMeals.length === 0) {
+      alert("Registra al menos una comida para analizar el día.");
+      return;
+    }
+    setIsCoaching(true);
+    try {
+      const analysis = await getDailyAnalysis(selectedDate, dayMeals, stats);
+      setCoachFeedback(analysis);
+      setActiveTab('coach');
+    } catch (err) {
+      alert("Error analizando el día.");
+    } finally {
+      setIsCoaching(false);
+    }
+  };
+
   if (!profile) {
     return (
       <div className="min-h-screen bg-slate-50 py-12 px-4 flex items-center justify-center">
@@ -190,7 +212,7 @@ const App: React.FC = () => {
                 activeTab === 'coach' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
               } disabled:opacity-50`}
             >
-              {isCoaching ? '...' : 'Coach IA'}
+              {isCoaching ? '...' : 'Estrategia IA'}
               {!isCoaching && <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
             </button>
           </nav>
@@ -209,6 +231,8 @@ const App: React.FC = () => {
             onUpdateNote={handleUpdateNote}
             stats={stats}
             onToggleExercise={() => handleToggleExercise(selectedDate)}
+            onAnalyzeDay={requestDailyAnalysis}
+            isAnalyzing={isCoaching}
           />
         )}
         {activeTab === 'history' && (
@@ -230,21 +254,21 @@ const App: React.FC = () => {
         )}
         {activeTab === 'coach' && (
           <div className="max-w-3xl mx-auto space-y-6">
-            <h2 className="text-2xl font-black text-slate-900">Asesoría de tu Coach IA</h2>
+            <h2 className="text-2xl font-black text-slate-900">Análisis del Coach IA</h2>
             <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm min-h-[400px]">
               {isCoaching ? (
                 <div className="flex flex-col items-center justify-center h-full py-20 space-y-4">
                   <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-600 border-t-transparent"></div>
-                  <p className="text-slate-500 font-bold">Analizando tus datos y preparando consejos...</p>
+                  <p className="text-slate-500 font-bold">El Coach está redactando tu reporte...</p>
                 </div>
               ) : (
-                <div className="prose prose-slate max-w-none text-slate-900">
+                <div className="prose prose-slate max-w-none text-slate-900 whitespace-pre-wrap">
                   {coachFeedback ? coachFeedback.split('\n').map((line, i) => (
-                    <p key={i} className={`mb-4 ${line.startsWith('#') || line.toUpperCase().includes('ANALISIS') ? 'font-black text-xl text-emerald-600 mt-8 first:mt-0' : 'font-medium'}`}>{line}</p>
+                    <p key={i} className={`mb-4 ${line.startsWith('#') || line.toUpperCase().includes('ANALISIS') || line.toUpperCase().includes('REPORTE') ? 'font-black text-xl text-emerald-600 mt-8 first:mt-0' : 'font-medium'}`}>{line}</p>
                   )) : (
                     <div className="text-center py-20">
-                      <p className="text-slate-400 italic mb-6">Aún no hay un análisis generado.</p>
-                      <button onClick={generateAdvice} className="bg-slate-900 text-white px-8 py-3 rounded-2xl font-bold">Generar Reporte Ahora</button>
+                      <p className="text-slate-400 italic mb-6">Usa los botones de análisis en el Diario o en el menú superior.</p>
+                      <button onClick={generateAdvice} className="bg-slate-900 text-white px-8 py-3 rounded-2xl font-bold">Análisis de Perfil</button>
                     </div>
                   )}
                 </div>
@@ -255,7 +279,7 @@ const App: React.FC = () => {
       </main>
       
       <footer className="py-12 border-t border-slate-200 text-center text-slate-400 text-sm font-medium">
-        NutriJournal AI &copy; {new Date().getFullYear()} • Tu diario inteligente de salud
+        NutriJournal AI &copy; {new Date().getFullYear()} • Inteligencia Nutricional Aplicada
       </footer>
     </div>
   );

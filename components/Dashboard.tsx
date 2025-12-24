@@ -12,6 +12,8 @@ interface DashboardProps {
   notes: string;
   onUpdateNote: (date: string, content: string) => void;
   onToggleExercise: () => void;
+  onAnalyzeDay: () => Promise<void>;
+  isAnalyzing: boolean;
   stats: any;
 }
 
@@ -39,7 +41,7 @@ const MacroCard = ({ label, current, target, colorClass, unit = 'g', subtitle }:
   );
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ meals, onAddMeal, onDeleteMeal, profile, selectedDate, notes, onUpdateNote, stats, onToggleExercise }) => {
+const Dashboard: React.FC<DashboardProps> = ({ meals, onAddMeal, onDeleteMeal, profile, selectedDate, notes, onUpdateNote, stats, onToggleExercise, onAnalyzeDay, isAnalyzing }) => {
   const [description, setDescription] = useState('');
   const [quantity, setQuantity] = useState('');
   const [mealTime, setMealTime] = useState(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }));
@@ -90,26 +92,43 @@ const Dashboard: React.FC<DashboardProps> = ({ meals, onAddMeal, onDeleteMeal, p
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-top-4 duration-700">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-        <div>
-          <h2 className="text-3xl font-black text-slate-900 capitalize">{formatDate(selectedDate)}</h2>
-          <div className="flex items-center gap-4 mt-2">
-            <p className="text-slate-500 font-bold">{isToday ? 'Estás en el camino correcto' : 'Revisión histórica'}</p>
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-6">
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-3xl font-black text-slate-900 capitalize">{formatDate(selectedDate)}</h2>
+            <p className="text-slate-500 font-bold mt-1">{isToday ? 'Estás en el camino correcto' : 'Revisión histórica'}</p>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-3">
             <button 
               onClick={onToggleExercise}
-              className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
                 stats?.isExerciseDay 
                 ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' 
-                : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                : 'bg-white text-slate-400 border border-slate-200 hover:border-blue-200'
               }`}
             >
               <span className="text-sm">{stats?.isExerciseDay ? '💪' : '😴'}</span>
-              {stats?.isExerciseDay ? 'Entrené hoy' : 'Día de descanso'}
+              {stats?.isExerciseDay ? 'Hoy entrené' : 'Día de descanso'}
+            </button>
+
+            <button 
+              onClick={onAnalyzeDay}
+              disabled={isAnalyzing || selectedMeals.length === 0}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-sm ${
+                isAnalyzing 
+                ? 'bg-emerald-50 text-emerald-600 animate-pulse cursor-wait' 
+                : 'bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-emerald-100 active:scale-95'
+              } disabled:opacity-30 disabled:grayscale`}
+            >
+              <span className="text-sm">✨</span>
+              {isAnalyzing ? 'Analizando día...' : 'Analizar día con IA'}
             </button>
           </div>
         </div>
+
         {stats && (
-          <div className="bg-slate-900 text-white p-6 rounded-3xl shadow-2xl flex items-center gap-6 min-w-[320px] relative overflow-hidden">
+          <div className="bg-slate-900 text-white p-6 rounded-3xl shadow-2xl flex items-center gap-6 min-w-[340px] relative overflow-hidden border border-slate-800">
             {stats.isSafeLimited && (
               <div className="absolute top-0 right-0 bg-amber-500 text-slate-900 text-[8px] font-black px-3 py-1 uppercase tracking-tighter">
                 Límite de Salud Alcanzado
@@ -132,11 +151,14 @@ const Dashboard: React.FC<DashboardProps> = ({ meals, onAddMeal, onDeleteMeal, p
               </svg>
               <div className="absolute inset-0 flex items-center justify-center text-[10px] font-black">{progressPercent.toFixed(0)}%</div>
             </div>
-            <div>
-              <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Meta Diaria</p>
-              <p className="text-2xl font-black">{stats.targetCalories.toFixed(0)} <span className="text-xs">kcal</span></p>
-              <p className={`text-xs font-bold ${caloriesLeft > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {caloriesLeft > 0 ? `Faltan ${caloriesLeft.toFixed(0)} kcal` : 'Límite alcanzado'}
+            <div className="flex-1">
+              <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Meta: {profile.goal.replace('_', ' ')}</p>
+              <div className="flex items-baseline gap-1">
+                <p className="text-2xl font-black text-emerald-400">{totals.calories.toFixed(0)}</p>
+                <p className="text-slate-400 text-sm font-bold">/ {stats.targetCalories.toFixed(0)} kcal</p>
+              </div>
+              <p className={`text-[10px] font-black uppercase mt-1 ${caloriesLeft > 0 ? 'text-slate-400' : 'text-rose-400'}`}>
+                {caloriesLeft > 0 ? `${caloriesLeft.toFixed(0)} kcal restantes` : 'Límite diario superado'}
               </p>
             </div>
           </div>
@@ -144,13 +166,18 @@ const Dashboard: React.FC<DashboardProps> = ({ meals, onAddMeal, onDeleteMeal, p
       </div>
 
       <section className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col">
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
             {stats?.isExerciseDay ? 'Gasto con Actividad' : 'Gasto en Reposo'}
           </p>
-          <p className="text-2xl font-black text-slate-900">{stats.tdee.toFixed(0)} <span className="text-xs">kcal</span></p>
-          <p className="text-xs font-medium text-slate-500 mt-1">
-            {stats?.isExerciseDay ? 'Incluye quema por entreno' : 'Sin actividad física extra'}
+          <div className="flex items-baseline gap-1">
+            <p className="text-2xl font-black text-slate-900">{stats.tdee.toFixed(0)}</p>
+            <span className="text-xs font-bold text-slate-400">kcal/día</span>
+          </div>
+          <p className="text-[10px] font-medium text-slate-500 mt-auto pt-4">
+            {stats?.isExerciseDay 
+              ? 'Multiplicador aplicado por entrenamiento' 
+              : 'Nivel basal sin actividad extra'}
           </p>
         </div>
         
@@ -175,7 +202,7 @@ const Dashboard: React.FC<DashboardProps> = ({ meals, onAddMeal, onDeleteMeal, p
           current={totals.fat} 
           target={stats.targetFat} 
           colorClass="bg-amber-500" 
-          subtitle="Equilibrio hormonal" 
+          subtitle="Salud hormonal" 
         />
       </section>
 
@@ -207,8 +234,8 @@ const Dashboard: React.FC<DashboardProps> = ({ meals, onAddMeal, onDeleteMeal, p
                 <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">Cantidad (Opcional)</label>
                 <input type="text" value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="Ej: 150g o 2 piezas" className={inputClasses} />
               </div>
-              <button type="submit" disabled={loading || !description.trim()} className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-100 disabled:opacity-50">
-                {loading ? 'Analizando con IA...' : 'REGISTRAR ALIMENTO'}
+              <button type="submit" disabled={loading || !description.trim()} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black hover:bg-emerald-600 transition-all shadow-xl shadow-slate-100 disabled:opacity-50 uppercase tracking-widest">
+                {loading ? 'Analizando con IA...' : 'Registrar Alimento'}
               </button>
             </form>
           </section>
@@ -281,7 +308,7 @@ const Dashboard: React.FC<DashboardProps> = ({ meals, onAddMeal, onDeleteMeal, p
             <textarea
               value={notes}
               onChange={(e) => onUpdateNote(selectedDate, e.target.value)}
-              placeholder="¿Cómo te sentiste? ¿Digestión pesada? ¿Mucha energía?..."
+              placeholder="¿Cómo te sentiste hoy? Ej: Dormí bien, digestión ligera..."
               className="w-full h-40 p-5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 font-bold outline-none focus:ring-2 focus:ring-emerald-500 transition-all resize-none"
             />
           </section>

@@ -33,48 +33,76 @@ export const analyzeMeal = async (description: string): Promise<NutritionData> =
   }
 };
 
-export const getCoachAdvice = async (profile: UserProfile, logs: MealEntry[], measurements?: any[]): Promise<string> => {
-  const recentLogsText = logs.slice(-15).map(l => `- [${l.time}] ${l.type}: ${l.description} (${l.nutrition.calories} kcal)`).join('\n');
-  const measurementHistory = measurements?.slice(-5).map(m => `- Fecha: ${m.date}, Peso: ${m.weight}kg, Grasa: ${m.bodyFat || 'N/A'}%`).join('\n');
+export const getDailyAnalysis = async (date: string, meals: MealEntry[], stats: any): Promise<string> => {
+  const mealsText = meals.map(m => `- [${m.time}] ${m.type}: ${m.description} (${m.nutrition.calories} kcal, P:${m.nutrition.protein}g, C:${m.nutrition.carbs}g, G:${m.nutrition.fat}g)`).join('\n');
+  const totals = meals.reduce((acc, m) => ({
+    cals: acc.cals + m.nutrition.calories,
+    p: acc.p + m.nutrition.protein,
+    c: acc.c + m.nutrition.carbs,
+    g: acc.g + m.nutrition.fat
+  }), { cals: 0, p: 0, c: 0, g: 0 });
 
   const prompt = `
-    Actúa como un Nutricionista y Coach de Salud experto. 
-    IMPORTANTE: No uses asteriscos dobles para negritas en exceso. Usa un formato limpio.
+    Analiza el día alimenticio del usuario (${date}):
     
-    Perfil del usuario:
-    - Nombre: ${profile.name}
-    - Edad: ${profile.age} años
-    - Estatura: ${profile.height} cm
-    - Peso actual: ${profile.weight} kg
-    - % Grasa Corporal: ${profile.bodyFat || 'No especificado'}
-    - Actividad: ${profile.activityLevel}
-    - Objetivo: ${profile.goal}
-    - Alergias/Intolerancias: ${profile.allergies}, ${profile.intolerances}
-    - Notas: ${profile.considerations}
+    META DEL DÍA: ${stats.targetCalories.toFixed(0)} kcal
+    CONSUMIDO: ${totals.cals.toFixed(0)} kcal
+    MACROS OBJETIVO: P:${stats.targetProtein.toFixed(0)}g, C:${stats.targetCarbs.toFixed(0)}g, G:${stats.targetFat.toFixed(0)}g
+    CONSUMO ACTUAL: P:${totals.p.toFixed(0)}g, C:${totals.c.toFixed(0)}g, G:${totals.g.toFixed(0)}g
+    ¿ENTRENÓ?: ${stats.isExerciseDay ? 'SÍ' : 'NO'}
 
-    Historial de mediciones:
-    ${measurementHistory || 'Sin historial previo'}
+    COMIDAS REGISTRADAS:
+    ${mealsText}
 
-    Registros de comidas (incluyendo horas):
+    Dime:
+    1. BALANCE CALÓRICO: ¿Se pasó o le faltó? ¿Fue adecuado para el entrenamiento?
+    2. CALIDAD DE MACROS: ¿La distribución de proteínas/carbos/grasas fue óptima?
+    3. CONSEJO PARA MAÑANA: Qué debería ajustar basado en lo de hoy.
+    
+    Sé breve, motivador y directo. Máximo 150 palabras.
+  `;
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: prompt
+  });
+
+  return response.text || "No se pudo generar el análisis diario.";
+};
+
+export const getCoachAdvice = async (profile: UserProfile, logs: MealEntry[], measurements?: any[]): Promise<string> => {
+  const recentLogsText = logs.slice(-30).map(l => `- ${l.date} [${l.type}]: ${l.description}`).join('\n');
+  const measurementHistory = measurements?.slice(-10).map(m => `- ${m.date}: ${m.weight}kg, ${m.bodyFat || 'N/A'}% grasa`).join('\n');
+
+  const prompt = `
+    Actúa como un Nutricionista y Coach de Salud experto en Biohacking y Rendimiento. 
+    Analiza la ESTRATEGIA GLOBAL del usuario a largo plazo.
+    
+    Perfil: ${profile.name}, ${profile.age} años, ${profile.height}cm, ${profile.weight}kg, Meta: ${profile.goal} (${profile.weightLossTarget || profile.weightGainTarget || 0}kg/mes).
+    Nivel de Actividad Base: ${profile.activityLevel}.
+    
+    Historial de Peso/Grasa:
+    ${measurementHistory || 'Sin datos aún'}
+
+    Últimos Registros Alimenticios (Patrones):
     ${recentLogsText}
 
-    Basado en este perfil, proporciona un análisis:
-    1. ANALISIS GENERAL: ¿Qué está haciendo bien?
-    2. PUNTOS DE MEJORA: ¿En qué está fallando respecto a su objetivo y el timing de sus comidas?
-    3. ACCIONES PRACTICAS: Consejos específicos (porciones, alimentos, cambios de horario).
-    4. ALERTAS: Sobre alergias o porcentajes de grasa si es necesario.
-    
-    Usa un lenguaje profesional pero cercano. Evita el uso excesivo de símbolos Markdown.
+    Proporciona un REPORTE ESTRATÉGICO:
+    1. EVALUACIÓN DE PROGRESO: ¿Sus mediciones reales coinciden con sus registros de comida?
+    2. IDENTIFICACIÓN DE PATRONES: ¿Hay alimentos recurrentes dañinos o carencias de nutrientes?
+    3. RUTINA RECOMENDADA: Diseña una estructura ideal de comidas (horarios y tipos de macro) basada en su actividad física.
+    4. AJUSTES DE OBJETIVO: ¿Es realista su meta de kg/mes con lo que está registrando?
+
+    Usa un formato limpio con títulos claros. Sé muy analítico y profesional.
   `;
 
   const response = await ai.models.generateContent({
     model: 'gemini-3-pro-preview',
     contents: prompt,
     config: {
-      temperature: 0.7,
-      topP: 0.9,
+      temperature: 0.8,
     }
   });
 
-  return response.text || "No se pudo generar el consejo en este momento.";
+  return response.text || "No se pudo generar la estrategia global.";
 };
