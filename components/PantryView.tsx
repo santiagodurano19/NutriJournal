@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { PantryItem, MealPlanSession, GeneratedMealPlan } from '../types';
 
 interface PantryViewProps {
@@ -14,6 +14,8 @@ interface PantryViewProps {
 const PantryView: React.FC<PantryViewProps> = ({ pantry, onAdd, onRemove, onGenerate, isGenerating, planHistory }) => {
   const [newItem, setNewItem] = useState('');
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(planHistory.length > 0 ? planHistory[0].id : null);
+  const [activeCategoryIndex, setActiveCategoryIndex] = useState(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,6 +26,24 @@ const PantryView: React.FC<PantryViewProps> = ({ pantry, onAdd, onRemove, onGene
 
   const activeSession = planHistory.find(s => s.id === selectedSessionId) || (planHistory.length > 0 ? planHistory[0] : null);
   const mealPlan = activeSession?.plan || null;
+
+  const scrollToIndex = (index: number) => {
+    if (scrollRef.current) {
+      const width = scrollRef.current.offsetWidth;
+      scrollRef.current.scrollTo({
+        left: width * index,
+        behavior: 'smooth'
+      });
+      setActiveCategoryIndex(index);
+    }
+  };
+
+  const categories = mealPlan ? [
+    { title: 'Desayunos Intercambiables', icon: '🍳', list: mealPlan.desayunos, color: 'emerald' },
+    { title: 'Snacks Balanceados', icon: '🍎', list: mealPlan.snacks, color: 'rose' },
+    { title: 'Almuerzos Poderosos', icon: '🥗', list: mealPlan.almuerzos, color: 'blue' },
+    { title: 'Cenas Ligeras', icon: '🍛', list: mealPlan.cenas, color: 'indigo' }
+  ] : [];
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
@@ -77,7 +97,7 @@ const PantryView: React.FC<PantryViewProps> = ({ pantry, onAdd, onRemove, onGene
           {planHistory.length > 0 && (
             <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm">
               <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Historial de Mercados</h4>
-              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 no-scrollbar">
+              <div className="space-y-3 max-h-[250px] overflow-y-auto pr-2 no-scrollbar">
                 {planHistory.map(session => (
                   <button
                     key={session.id}
@@ -102,7 +122,7 @@ const PantryView: React.FC<PantryViewProps> = ({ pantry, onAdd, onRemove, onGene
         </div>
 
         {/* Lado Derecho: Plan de Menú y Sugerencias de NutriChef */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-6 flex flex-col min-h-0">
           {!mealPlan ? (
             <div className="h-full min-h-[500px] bg-slate-100/50 rounded-[40px] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center p-12 text-center">
               <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center text-4xl shadow-sm mb-6 animate-bounce">🥘</div>
@@ -112,8 +132,9 @@ const PantryView: React.FC<PantryViewProps> = ({ pantry, onAdd, onRemove, onGene
               </p>
             </div>
           ) : (
-            <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
-              <div className="bg-amber-50 border border-amber-100 p-8 rounded-[40px]">
+            <div className="space-y-6 animate-in slide-in-from-right-4 duration-500 flex flex-col h-full">
+              {/* Bloque de Sugerencias (Intacto) */}
+              <div className="bg-amber-50 border border-amber-100 p-8 rounded-[40px] shrink-0">
                 <div className="flex items-center justify-between mb-4">
                   <h4 className="text-amber-800 font-black flex items-center gap-2">
                     <span className="text-xl">🛒</span> Sugerencias de Compra Inteligente
@@ -131,26 +152,73 @@ const PantryView: React.FC<PantryViewProps> = ({ pantry, onAdd, onRemove, onGene
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {[
-                  { title: 'Desayunos Intercambiables', icon: '🍳', list: mealPlan.desayunos, color: 'emerald' },
-                  { title: 'Snacks Balanceados', icon: '🍎', list: mealPlan.snacks, color: 'rose' },
-                  { title: 'Almuerzos Poderosos', icon: '🥗', list: mealPlan.almuerzos, color: 'blue' },
-                  { title: 'Cenas Ligeras', icon: '🍛', list: mealPlan.cenas, color: 'indigo' }
-                ].map(cat => (
-                  <div key={cat.title} className="bg-white p-6 rounded-[40px] border border-slate-200 shadow-sm">
-                    <h5 className={`text-${cat.color}-600 font-black flex items-center gap-2 mb-4 uppercase text-[10px] tracking-widest`}>
-                      <span>{cat.icon}</span> {cat.title}
-                    </h5>
-                    <div className="space-y-3">
-                      {cat.list.map((meal, idx) => (
-                        <div key={idx} className="p-3 bg-slate-50 rounded-2xl text-[11px] font-bold text-slate-800 leading-relaxed border border-transparent hover:border-slate-200 transition-all">
-                          <span className="text-slate-400 mr-2">{idx + 1}.</span> {meal}
+              {/* Slider Horizontal de Comidas con 2 Columnas */}
+              <div className="relative group flex-1">
+                <div 
+                  ref={scrollRef}
+                  className="flex overflow-x-hidden snap-x snap-mandatory no-scrollbar scroll-smooth w-full"
+                >
+                  {categories.map((cat, idx) => (
+                    <div 
+                      key={cat.title} 
+                      className="min-w-full snap-center"
+                    >
+                      <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm h-full flex flex-col">
+                        <div className="flex items-center justify-between mb-8">
+                          <h5 className={`text-${cat.color}-600 font-black flex items-center gap-2 uppercase text-[10px] tracking-widest`}>
+                            <span className="text-2xl">{cat.icon}</span> {cat.title}
+                          </h5>
+                          <div className="bg-slate-50 px-4 py-1.5 rounded-full text-[10px] font-black text-slate-400">
+                            PÁGINA {idx + 1} DE 4
+                          </div>
                         </div>
-                      ))}
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 flex-1 overflow-y-auto no-scrollbar">
+                          {cat.list.map((meal, mIdx) => (
+                            <div key={mIdx} className="p-4 bg-slate-50 rounded-2xl text-[11px] font-bold text-slate-900 leading-relaxed border border-transparent hover:border-slate-200 transition-all flex items-start gap-3">
+                              <span className={`text-${cat.color}-500 mt-0.5 bg-white w-6 h-6 rounded-lg flex items-center justify-center shrink-0 shadow-sm text-[9px]`}>
+                                {String(mIdx + 1).padStart(2, '0')}
+                              </span> 
+                              <span>{meal}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
+                  ))}
+                </div>
+
+                {/* Controles de Navegación Estilizados */}
+                <div className="flex justify-center items-center gap-4 mt-6">
+                   <button 
+                    onClick={() => scrollToIndex(Math.max(0, activeCategoryIndex - 1))}
+                    disabled={activeCategoryIndex === 0}
+                    className="w-12 h-12 bg-white shadow-md rounded-2xl flex items-center justify-center border border-slate-100 text-slate-400 hover:text-emerald-500 disabled:opacity-30 transition-all"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+                  </button>
+
+                  <div className="flex gap-2">
+                    {categories.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => scrollToIndex(i)}
+                        className={`transition-all duration-300 rounded-full ${
+                          activeCategoryIndex === i ? 'w-8 h-2 bg-emerald-500' : 'w-2 h-2 bg-slate-200 hover:bg-slate-300'
+                        }`}
+                        aria-label={`Ir a ${categories[i].title}`}
+                      />
+                    ))}
                   </div>
-                ))}
+
+                  <button 
+                    onClick={() => scrollToIndex(Math.min(3, activeCategoryIndex + 1))}
+                    disabled={activeCategoryIndex === 3}
+                    className="w-12 h-12 bg-white shadow-md rounded-2xl flex items-center justify-center border border-slate-100 text-slate-400 hover:text-emerald-500 disabled:opacity-30 transition-all"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+                  </button>
+                </div>
               </div>
             </div>
           )}
