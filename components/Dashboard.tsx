@@ -11,10 +11,35 @@ interface DashboardProps {
   selectedDate: string;
   notes: string;
   onUpdateNote: (date: string, content: string) => void;
+  onToggleExercise: () => void;
   stats: any;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ meals, onAddMeal, onDeleteMeal, profile, selectedDate, notes, onUpdateNote, stats }) => {
+const MacroCard = ({ label, current, target, colorClass, unit = 'g', subtitle }: { label: string, current: number, target: number, colorClass: string, unit?: string, subtitle: string }) => {
+  const percent = Math.min(100, (current / target) * 100);
+  
+  return (
+    <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex flex-col">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
+        <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${colorClass} bg-opacity-10`}>{percent.toFixed(0)}%</span>
+      </div>
+      <div className="flex items-baseline gap-1 mb-3">
+        <p className={`text-2xl font-black ${colorClass.replace('bg-', 'text-')}`}>{current.toFixed(1)}</p>
+        <p className="text-slate-400 text-xs font-bold">/ {target.toFixed(0)}{unit}</p>
+      </div>
+      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden mb-3">
+        <div 
+          className={`h-full ${colorClass} transition-all duration-1000`} 
+          style={{ width: `${percent}%` }}
+        ></div>
+      </div>
+      <p className="text-[10px] font-medium text-slate-500 mt-auto">{subtitle}</p>
+    </div>
+  );
+};
+
+const Dashboard: React.FC<DashboardProps> = ({ meals, onAddMeal, onDeleteMeal, profile, selectedDate, notes, onUpdateNote, stats, onToggleExercise }) => {
   const [description, setDescription] = useState('');
   const [quantity, setQuantity] = useState('');
   const [mealTime, setMealTime] = useState(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }));
@@ -49,30 +74,47 @@ const Dashboard: React.FC<DashboardProps> = ({ meals, onAddMeal, onDeleteMeal, p
     { name: 'Carbohidratos', value: totals.carbs, color: '#3b82f6' },
   ];
 
-  const inputClasses = "w-full px-4 py-3 bg-white border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition text-slate-900 font-bold placeholder:text-slate-400";
-
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr + 'T12:00:00');
     return d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
   };
 
-  const target = stats?.targetCalories || 2000;
-  const caloriesLeft = Math.max(0, target - totals.calories);
-  const progressPercent = Math.min(100, (totals.calories / target) * 100);
-  // Reducimos el radio a 22 para que no toque los bordes del contenedor de 64px
+  const targetCals = stats?.targetCalories || 2000;
+  const caloriesLeft = Math.max(0, targetCals - totals.calories);
+  const progressPercent = Math.min(100, (totals.calories / targetCals) * 100);
   const radius = 22;
   const dashArray = 2 * Math.PI * radius;
   const dashOffset = dashArray - (dashArray * progressPercent / 100);
+
+  const inputClasses = "w-full px-4 py-3 bg-white border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 transition text-slate-900 font-bold placeholder:text-slate-400";
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-top-4 duration-700">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
         <div>
           <h2 className="text-3xl font-black text-slate-900 capitalize">{formatDate(selectedDate)}</h2>
-          <p className="text-slate-500 font-bold">{isToday ? 'Estás en el camino correcto' : 'Revisión histórica'}</p>
+          <div className="flex items-center gap-4 mt-2">
+            <p className="text-slate-500 font-bold">{isToday ? 'Estás en el camino correcto' : 'Revisión histórica'}</p>
+            <button 
+              onClick={onToggleExercise}
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
+                stats?.isExerciseDay 
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' 
+                : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+              }`}
+            >
+              <span className="text-sm">{stats?.isExerciseDay ? '💪' : '😴'}</span>
+              {stats?.isExerciseDay ? 'Entrené hoy' : 'Día de descanso'}
+            </button>
+          </div>
         </div>
         {stats && (
-          <div className="bg-slate-900 text-white p-6 rounded-3xl shadow-2xl flex items-center gap-6 min-w-[280px]">
+          <div className="bg-slate-900 text-white p-6 rounded-3xl shadow-2xl flex items-center gap-6 min-w-[320px] relative overflow-hidden">
+            {stats.isSafeLimited && (
+              <div className="absolute top-0 right-0 bg-amber-500 text-slate-900 text-[8px] font-black px-3 py-1 uppercase tracking-tighter">
+                Límite de Salud Alcanzado
+              </div>
+            )}
             <div className="relative w-16 h-16 flex items-center justify-center shrink-0">
               <svg className="w-16 h-16 -rotate-90 overflow-visible" viewBox="0 0 64 64">
                 <circle cx="32" cy="32" r={radius} stroke="currentColor" strokeWidth="5" fill="transparent" className="text-slate-800" />
@@ -93,7 +135,9 @@ const Dashboard: React.FC<DashboardProps> = ({ meals, onAddMeal, onDeleteMeal, p
             <div>
               <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Meta Diaria</p>
               <p className="text-2xl font-black">{stats.targetCalories.toFixed(0)} <span className="text-xs">kcal</span></p>
-              <p className="text-xs font-bold text-emerald-400">Faltan {caloriesLeft.toFixed(0)} kcal</p>
+              <p className={`text-xs font-bold ${caloriesLeft > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {caloriesLeft > 0 ? `Faltan ${caloriesLeft.toFixed(0)} kcal` : 'Límite alcanzado'}
+              </p>
             </div>
           </div>
         )}
@@ -101,25 +145,38 @@ const Dashboard: React.FC<DashboardProps> = ({ meals, onAddMeal, onDeleteMeal, p
 
       <section className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Metabolismo Basal (TMB)</p>
-          <p className="text-2xl font-black text-slate-900">{stats.bmr.toFixed(0)} <span className="text-xs">kcal</span></p>
-          <p className="text-xs font-medium text-slate-500 mt-1">Gasto en reposo total</p>
-        </div>
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Gasto Total (TDEE)</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">
+            {stats?.isExerciseDay ? 'Gasto con Actividad' : 'Gasto en Reposo'}
+          </p>
           <p className="text-2xl font-black text-slate-900">{stats.tdee.toFixed(0)} <span className="text-xs">kcal</span></p>
-          <p className="text-xs font-medium text-slate-500 mt-1">Incluyendo actividad física</p>
+          <p className="text-xs font-medium text-slate-500 mt-1">
+            {stats?.isExerciseDay ? 'Incluye quema por entreno' : 'Sin actividad física extra'}
+          </p>
         </div>
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Proteína Hoy</p>
-          <p className="text-2xl font-black text-emerald-600">{totals.protein.toFixed(1)} <span className="text-xs">g</span></p>
-          <p className="text-xs font-medium text-slate-500 mt-1">Recuperación muscular</p>
-        </div>
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Carbohidratos</p>
-          <p className="text-2xl font-black text-blue-600">{totals.carbs.toFixed(1)} <span className="text-xs">g</span></p>
-          <p className="text-xs font-medium text-slate-500 mt-1">Fuente de energía</p>
-        </div>
+        
+        <MacroCard 
+          label="Proteína" 
+          current={totals.protein} 
+          target={stats.targetProtein} 
+          colorClass="bg-emerald-500" 
+          subtitle="Mantenimiento muscular" 
+        />
+        
+        <MacroCard 
+          label="Carbohidratos" 
+          current={totals.carbs} 
+          target={stats.targetCarbs} 
+          colorClass="bg-blue-500" 
+          subtitle={stats?.isExerciseDay ? "Energía para entrenar" : "Energía base"}
+        />
+        
+        <MacroCard 
+          label="Grasas" 
+          current={totals.fat} 
+          target={stats.targetFat} 
+          colorClass="bg-amber-500" 
+          subtitle="Equilibrio hormonal" 
+        />
       </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -198,7 +255,7 @@ const Dashboard: React.FC<DashboardProps> = ({ meals, onAddMeal, onDeleteMeal, p
 
         <div className="space-y-8">
           <section className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm text-center">
-            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Macros del Día</h3>
+            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Distribución Calórica</h3>
             <div className="w-full h-56 flex items-center justify-center">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>

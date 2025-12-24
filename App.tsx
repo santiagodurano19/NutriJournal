@@ -28,6 +28,11 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : {};
   });
 
+  const [exerciseLogs, setExerciseLogs] = useState<Record<string, boolean>>(() => {
+    const saved = localStorage.getItem('nutri_exercise');
+    return saved ? JSON.parse(saved) : {};
+  });
+
   const [activeTab, setActiveTab] = useState<'journal' | 'progress' | 'coach' | 'profile' | 'history'>('journal');
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [coachFeedback, setCoachFeedback] = useState<string>('');
@@ -41,14 +46,16 @@ const App: React.FC = () => {
     localStorage.setItem('nutri_meals', JSON.stringify(meals));
     localStorage.setItem('nutri_measurements', JSON.stringify(measurements));
     localStorage.setItem('nutri_notes', JSON.stringify(dailyNotes));
-  }, [meals, measurements, dailyNotes]);
+    localStorage.setItem('nutri_exercise', JSON.stringify(exerciseLogs));
+  }, [meals, measurements, dailyNotes, exerciseLogs]);
 
-  // Cálculos de Metabolismo (Mifflin-St Jeor)
   const stats = useMemo(() => {
     if (!profile) return null;
+    
     let bmr = (10 * profile.weight) + (6.25 * profile.height) - (5 * profile.age);
     bmr = profile.gender === 'masculino' ? bmr + 5 : bmr - 161;
 
+    const isExerciseDay = exerciseLogs[selectedDate] || false;
     const activityMultipliers = {
       sedentario: 1.2,
       ligero: 1.375,
@@ -56,7 +63,12 @@ const App: React.FC = () => {
       intenso: 1.725,
       atleta: 1.9
     };
-    const tdee = bmr * activityMultipliers[profile.activityLevel];
+
+    const currentMultiplier = isExerciseDay 
+      ? activityMultipliers[profile.activityLevel] 
+      : 1.2;
+
+    const tdee = bmr * currentMultiplier;
     
     let targetCalories = tdee;
     if (profile.goal === 'perder_peso') {
@@ -69,8 +81,28 @@ const App: React.FC = () => {
       targetCalories = tdee + dailySurplus;
     }
 
-    return { bmr, tdee, targetCalories: Math.max(targetCalories, 1200) };
-  }, [profile]);
+    // LÍMITE DE SEGURIDAD NUTRICIONAL
+    const minSafeCalories = profile.gender === 'masculino' ? 1500 : 1200;
+    const isSafeLimited = targetCalories < minSafeCalories && profile.goal === 'perder_peso';
+    targetCalories = Math.max(targetCalories, minSafeCalories);
+
+    const targetProtein = profile.weight * 2;
+    const targetFat = profile.weight * 0.8;
+    const proteinCals = targetProtein * 4;
+    const fatCals = targetFat * 9;
+    const targetCarbs = Math.max(0, (targetCalories - proteinCals - fatCals) / 4);
+
+    return { 
+      bmr, 
+      tdee, 
+      targetCalories,
+      targetProtein,
+      targetFat,
+      targetCarbs,
+      isExerciseDay,
+      isSafeLimited
+    };
+  }, [profile, selectedDate, exerciseLogs]);
 
   const handleAddMeal = async (type: MealEntry['type'], description: string, time: string) => {
     try {
@@ -99,6 +131,10 @@ const App: React.FC = () => {
 
   const handleUpdateNote = (date: string, content: string) => {
     setDailyNotes(prev => ({ ...prev, [date]: content }));
+  };
+
+  const handleToggleExercise = (date: string) => {
+    setExerciseLogs(prev => ({ ...prev, [date]: !prev[date] }));
   };
 
   const generateAdvice = useCallback(async () => {
@@ -172,6 +208,7 @@ const App: React.FC = () => {
             notes={dailyNotes[selectedDate] || ''}
             onUpdateNote={handleUpdateNote}
             stats={stats}
+            onToggleExercise={() => handleToggleExercise(selectedDate)}
           />
         )}
         {activeTab === 'history' && (

@@ -146,7 +146,7 @@ const MeasurementsView: React.FC<MeasurementsViewProps> = ({ history, onAdd, onD
                   </p>
                 </div>
               ) : (
-                <div className="text-slate-500 font-medium italic">
+                <div className="text-slate-500 font-medium">
                   Pasa el cursor sobre un campo de entrada para ver las instrucciones de medición correcta.
                 </div>
               )}
