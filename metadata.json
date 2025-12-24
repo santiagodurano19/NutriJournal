@@ -1,0 +1,5 @@
+{
+  "name": "NutriJournal AI",
+  "description": "Un diario alimenticio inteligente que utiliza IA para analizar tu nutrición, rastrear macros y brindarte consejos personalizados basados en tu perfil y objetivos.",
+  "requestFramePermissions": []
+}
