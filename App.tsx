@@ -34,6 +34,7 @@ const App: React.FC = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [isExerciseDay, setIsExerciseDay] = useState(false);
   const [activeTab, setActiveTab] = useState<'journal' | 'progress' | 'coach' | 'profile' | 'history' | 'nutrichef'>('journal');
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [coachFeedback, setCoachFeedback] = useState<string>('');
@@ -54,23 +55,41 @@ const App: React.FC = () => {
     if (!profile) return null;
     let bmr = (10 * profile.weight) + (6.25 * profile.height) - (5 * profile.age);
     bmr = profile.gender === 'masculino' ? bmr + 5 : bmr - 161;
+    
     const activityMultipliers = { sedentario: 1.2, ligero: 1.375, moderado: 1.55, intenso: 1.725, atleta: 1.9 };
-    const tdee = bmr * activityMultipliers[profile.activityLevel];
+    let tdee = bmr * activityMultipliers[profile.activityLevel];
+    
+    // Ajuste dinámico por día de ejercicio
+    // Si es día de ejercicio, sumamos un 15% extra al TDEE para cubrir el gasto de la sesión
+    if (isExerciseDay) {
+      tdee *= 1.15;
+    }
+
     let targetCalories = tdee;
     if (profile.goal === 'perder_peso') {
       targetCalories = tdee - ((profile.weightLossTarget || 2) * 7700 / 30);
     } else if (profile.goal === 'ganar_musculo') {
       targetCalories = tdee + ((profile.weightGainTarget || 1) * 7700 / 30);
     }
+    
     const safetyFloor = Math.max(bmr * 0.95, tdee * 0.75);
     targetCalories = Math.max(targetCalories, safetyFloor);
+
+    // Ajuste de macros: Proteína constante, Grasas constantes, Carbs como variable de ajuste
+    const targetProtein = profile.weight * 2.2; 
+    const targetFat = profile.weight * 0.8;
+    const targetCarbs = Math.max(0, (targetCalories - (targetProtein * 4) - (targetFat * 9)) / 4);
+
     return { 
-      bmr, tdee, targetCalories, 
-      targetProtein: profile.weight * 2.2, 
-      targetFat: profile.weight * 0.8,
-      targetCarbs: Math.max(0, (targetCalories - (profile.weight * 2.2 * 4) - (profile.weight * 0.8 * 9)) / 4)
+      bmr, 
+      tdee, 
+      targetCalories, 
+      targetProtein, 
+      targetFat,
+      targetCarbs,
+      isExerciseDay
     };
-  }, [profile]);
+  }, [profile, isExerciseDay]);
 
   const handleGenerateMenu = async () => {
     if (!profile || pantry.length === 0) return;
@@ -107,6 +126,7 @@ const App: React.FC = () => {
           </div>
           <nav className="flex items-center gap-1">
             <button onClick={() => setActiveTab('journal')} className={navItemClass('journal')}>Diario</button>
+            <button onClick={() => setActiveTab('history')} className={navItemClass('history')}>Calendario</button>
             <button onClick={() => setActiveTab('nutrichef')} className={navItemClass('nutrichef')}>NutriChef</button>
             <button onClick={() => setActiveTab('progress')} className={navItemClass('progress')}>Progreso</button>
             <button onClick={() => setActiveTab('profile')} className={navItemClass('profile')}>Perfil</button>
@@ -124,11 +144,18 @@ const App: React.FC = () => {
             stats={stats}
             onAddMeal={async (type, desc, time) => { const nutrition = await analyzeMeal(desc); setMeals(prev => [{id: crypto.randomUUID(), date: selectedDate, time, type, description: desc, nutrition}, ...prev]) }}
             onDeleteMeal={(id) => setMeals(m => m.filter(x => x.id !== id))}
-            onToggleExercise={() => {}}
+            onToggleExercise={() => setIsExerciseDay(!isExerciseDay)}
             onUpdateNote={() => {}}
             notes=""
             onAnalyzeDay={async () => { setIsCoaching(true); setActiveTab('coach'); getDailyAnalysis(selectedDate, meals.filter(m => m.date === selectedDate), stats).then(setCoachFeedback).finally(() => setIsCoaching(false)); }}
             isAnalyzing={isCoaching}
+          />
+        )}
+        {activeTab === 'history' && (
+          <HistoryView 
+            meals={meals} 
+            selectedDate={selectedDate} 
+            onSelectDate={(date) => { setSelectedDate(date); setActiveTab('journal'); }} 
           />
         )}
         {activeTab === 'nutrichef' && (
