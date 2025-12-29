@@ -69,3 +69,10 @@ export interface MealPlanSession {
   pantrySnapshot: string[];
   plan: GeneratedMealPlan;
 }
+
+export interface CoachHistoryEntry {
+  id: string;
+  date: string;
+  queryType: 'advice' | 'analysis';
+  content: string;
+}
