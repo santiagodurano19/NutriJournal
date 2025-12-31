@@ -8,38 +8,50 @@ const App: React.FC = () => {
   const [activeJournal, setActiveJournal] = useState<string | null>(null);
 
   useEffect(() => {
-    // Escuchamos la sesión de Supabase
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-    });
+    // 1. Verificar sesión inicial
+    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
     
+    // 2. Escuchar cambios de sesión (Login/Logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (!session) setActiveJournal(null); // Si sale, reseteamos el Hub
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // 1. Si NO hay sesión, mostramos el Portal (Registro/Login)
+  // VISTA A: Login/Registro
   if (!session) {
     return <JournalPortal onJournalSelect={(id) => setActiveJournal(id)} />;
   }
 
-  // 2. Si hay sesión pero aún NO elige un Journal, mostramos el Portal en vista HUB
+  // VISTA B: El HUB (Si está logueado pero no ha elegido app)
   if (!activeJournal) {
     return <JournalPortal onJournalSelect={(id) => setActiveJournal(id)} />;
   }
 
-  // 3. Si eligió NutriJournal, mostramos el Dashboard
+  // VISTA C: Nutri Journal Activo
   if (activeJournal === 'nutri') {
-    return <Dashboard />;
+    return (
+      <div className="animate-in fade-in duration-700">
+        <Dashboard />
+        {/* Botón flotante para volver al Hub si quieres */}
+        <button 
+          onClick={() => setActiveJournal(null)}
+          style={{
+            position: 'fixed', bottom: '20px', right: '20px',
+            backgroundColor: '#1e293b', color: 'white', padding: '10px 20px',
+            borderRadius: '40px', border: '1px solid rgba(255,255,255,0.1)',
+            cursor: 'pointer', zIndex: 1000
+          }}
+        >
+          Volver al Hub
+        </button>
+      </div>
+    );
   }
 
-  return (
-    <div style={{ backgroundColor: '#0f172a', minHeight: '100vh', color: 'white', padding: '40px', textAlign: 'center' }}>
-      <h1>Cargando Ecosistema JOURNAL...</h1>
-    </div>
-  );
+  return <div>Cargando ecosistema JOURNAL...</div>;
 };
 
 export default App;
