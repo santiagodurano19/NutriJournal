@@ -8,50 +8,40 @@ const App: React.FC = () => {
   const [activeJournal, setActiveJournal] = useState<string | null>(null);
 
   useEffect(() => {
-    // 1. Verificar sesión inicial
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
-    
-    // 2. Escuchar cambios de sesión (Login/Logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (!session) setActiveJournal(null); // Si sale, reseteamos el Hub
+      if (!session) setActiveJournal(null);
     });
-
     return () => subscription.unsubscribe();
   }, []);
 
-  // VISTA A: Login/Registro
+  // VISTA A: No hay sesión
   if (!session) {
     return <JournalPortal onJournalSelect={(id) => setActiveJournal(id)} />;
   }
 
-  // VISTA B: El HUB (Si está logueado pero no ha elegido app)
+  // VISTA B: Hay sesión pero está en el HUB
   if (!activeJournal) {
     return <JournalPortal onJournalSelect={(id) => setActiveJournal(id)} />;
   }
 
-  // VISTA C: Nutri Journal Activo
+  // VISTA C: Nutri Journal cargado
   if (activeJournal === 'nutri') {
     return (
-      <div className="animate-in fade-in duration-700">
+      <div style={{ minHeight: '100vh', backgroundColor: '#0f172a' }}>
         <Dashboard />
-        {/* Botón flotante para volver al Hub si quieres */}
         <button 
           onClick={() => setActiveJournal(null)}
-          style={{
-            position: 'fixed', bottom: '20px', right: '20px',
-            backgroundColor: '#1e293b', color: 'white', padding: '10px 20px',
-            borderRadius: '40px', border: '1px solid rgba(255,255,255,0.1)',
-            cursor: 'pointer', zIndex: 1000
-          }}
+          style={{ position: 'fixed', bottom: '24px', right: '24px', padding: '12px 24px', borderRadius: '40px', backgroundColor: '#1e293b', color: 'white', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', zIndex: 1000, fontWeight: '600' }}
         >
-          Volver al Hub
+          ← Volver al Hub
         </button>
       </div>
     );
   }
 
-  return <div>Cargando ecosistema JOURNAL...</div>;
+  return <div style={{ color: 'white', textAlign: 'center', padding: '50px' }}>Cargando ecosistema JOURNAL...</div>;
 };
 
 export default App;
