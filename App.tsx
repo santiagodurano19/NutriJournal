@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { UserProfile, MealEntry, Measurement, PantryItem, MealPlanSession, CoachHistoryEntry } from './types';
 import ProfileForm from './components/ProfileForm';
@@ -7,6 +6,10 @@ import HistoryView from './components/HistoryView';
 import MeasurementsView from './components/MeasurementsView';
 import PantryView from './components/PantryView';
 import { analyzeMeal, getCoachAdvice, getDailyAnalysis, generatePantryMenu } from './services/geminiService';
+
+// --- NUEVAS IMPORTACIONES PARA EL ECOSISTEMA JOURNAL ---
+import { supabase } from './services/supabaseClient';
+import { Auth } from './components/Auth';
 
 // Componente para formatear el texto de la IA
 const FormattedResponse: React.FC<{ text: string }> = ({ text }) => {
@@ -17,7 +20,6 @@ const FormattedResponse: React.FC<{ text: string }> = ({ text }) => {
         if (line.startsWith('#')) return <h3 key={i} className="text-xl font-black text-slate-900 mt-6 mb-2">{line.replace(/#/g, '').trim()}</h3>;
         if (line.startsWith('* ') || line.startsWith('- ')) return <li key={i} className="ml-4 text-slate-700 list-disc font-medium">{line.substring(2)}</li>;
         
-        // Formatear negritas
         const parts = line.split(/(\*\*.*?\*\*)/g);
         return (
           <p key={i} className="text-slate-700 leading-relaxed font-medium">
@@ -46,6 +48,9 @@ const ToastContainer: React.FC<{ toasts: { id: string, message: string }[] }> = 
 );
 
 const App: React.FC = () => {
+  // --- ESTADO DE SESIÓN (NUEVO) ---
+  const [session, setSession] = useState<any>(null);
+
   const [profile, setProfile] = useState<UserProfile | null>(() => {
     const saved = localStorage.getItem('nutri_profile');
     return saved ? JSON.parse(saved) : null;
@@ -87,6 +92,21 @@ const App: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [isCoaching, setIsCoaching] = useState(false);
   const [selectedCoachEntryId, setSelectedCoachEntryId] = useState<string | null>(null);
+
+  // --- EFECTO DE AUTENTICACIÓN (NUEVO) ---
+  useEffect(() => {
+    // 1. Obtener sesión actual al cargar
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    // 2. Escuchar cambios (Login/Logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (profile) localStorage.setItem('nutri_profile', JSON.stringify(profile));
@@ -176,8 +196,27 @@ const App: React.FC = () => {
     activeTab === tab ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
   }`;
 
-  if (!profile) return <div className="min-h-screen bg-slate-50 py-12 px-4 flex items-center justify-center"><ProfileForm onSave={(p) => { setProfile(p); addToast("Perfil guardado"); }} initialData={null} /></div>;
+  // --- LÓGICA DE RENDERIZADO CONDICIONAL (EL FILTRO DE SEGURIDAD) ---
+  
+  // 1. Si no hay sesión, obligamos a registrarse/loguearse
+  if (!session) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <Auth />
+      </div>
+    );
+  }
 
+  // 2. Si el usuario está logueado pero no tiene perfil de NutriJournal creado aún (en localStorage)
+  if (!profile) {
+    return (
+      <div className="min-h-screen bg-slate-50 py-12 px-4 flex items-center justify-center">
+        <ProfileForm onSave={(p) => { setProfile(p); addToast("Perfil guardado"); }} initialData={null} />
+      </div>
+    );
+  }
+
+  // 3. Si todo está en orden (Sesión + Perfil), mostramos la app completa
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       <ToastContainer toasts={toasts} />
@@ -194,6 +233,13 @@ const App: React.FC = () => {
             <button onClick={() => setActiveTab('progress')} className={navItemClass('progress')}>Progreso</button>
             <button onClick={() => setActiveTab('profile')} className={navItemClass('profile')}>Perfil</button>
             <button onClick={() => setActiveTab('coach')} className={navItemClass('coach')}>Coach IA</button>
+            {/* Botón de Cerrar Sesión */}
+            <button 
+              onClick={() => supabase.auth.signOut()} 
+              className="ml-4 px-4 py-2 rounded-xl text-sm font-bold text-rose-500 hover:bg-rose-50 transition-all"
+            >
+              Salir
+            </button>
           </nav>
         </div>
       </header>
@@ -223,7 +269,6 @@ const App: React.FC = () => {
         {activeTab === 'profile' && <ProfileForm onSave={(p) => { setProfile(p); addToast("Perfil actualizado"); }} initialData={profile} />}
         {activeTab === 'coach' && (
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-            {/* Sidebar Historial Coach */}
             <div className="space-y-6">
               <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm">
                 <h3 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-2">✨ Consultorio</h3>
@@ -250,48 +295,21 @@ const App: React.FC = () => {
                         </p>
                         <p className="text-[9px] text-slate-400 font-bold mt-1">{entry.date}</p>
                       </button>
-                      <button onClick={() => { setCoachHistory(prev => prev.filter(e => e.id !== entry.id)); addToast("Consulta eliminada"); }} className="absolute top-2 right-2 p-1 text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                      </button>
                     </div>
                   ))}
-                  {coachHistory.length === 0 && <p className="text-center py-10 text-slate-300 italic text-xs">Sin historial</p>}
                 </div>
               </div>
             </div>
 
-            {/* Visualizador de Consulta */}
             <div className="lg:col-span-3 space-y-6">
-              {!activeCoachEntry && !isCoaching ? (
-                <div className="h-[600px] bg-slate-100/50 rounded-[40px] border-2 border-dashed border-slate-200 flex flex-col items-center justify-center p-12 text-center">
-                  <div className="text-6xl mb-6">🧠</div>
-                  <h4 className="text-xl font-black text-slate-800">Coach Nutricional IA</h4>
-                  <p className="text-slate-500 font-medium max-w-sm mt-2">Haz una consulta estratégica para recibir consejos personalizados basados en tu perfil y progreso actual.</p>
-                </div>
-              ) : (
+              {isCoaching ? (
+                 <div className="bg-white p-10 rounded-[40px] flex flex-col items-center justify-center space-y-4 animate-pulse">
+                    <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 text-2xl">⚡</div>
+                    <p className="font-black text-slate-400 uppercase tracking-widest text-xs">El Coach está redactando tu respuesta...</p>
+                 </div>
+              ) : activeCoachEntry && (
                 <div className="bg-white p-10 rounded-[40px] border border-slate-200 shadow-sm animate-in slide-in-from-right-4 duration-500 min-h-[600px]">
-                  {isCoaching ? (
-                    <div className="h-full flex flex-col items-center justify-center space-y-4 animate-pulse">
-                      <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600 text-2xl">⚡</div>
-                      <p className="font-black text-slate-400 uppercase tracking-widest text-xs">El Coach está redactando tu respuesta...</p>
-                    </div>
-                  ) : activeCoachEntry && (
-                    <>
-                      <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-6">
-                        <div>
-                          <span className={`text-[10px] font-black uppercase tracking-widest px-4 py-1.5 rounded-full ${activeCoachEntry.queryType === 'advice' ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'}`}>
-                            {activeCoachEntry.queryType === 'advice' ? 'Consulta Estratégica' : 'Análisis de Jornada'}
-                          </span>
-                          <p className="text-xs text-slate-400 font-bold mt-2 uppercase tracking-tighter">Generado el {activeCoachEntry.date}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs font-black text-slate-900">{profile.name}</p>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{profile.goal.replace('_', ' ')}</p>
-                        </div>
-                      </div>
-                      <FormattedResponse text={activeCoachEntry.content} />
-                    </>
-                  )}
+                  <FormattedResponse text={activeCoachEntry.content} />
                 </div>
               )}
             </div>
