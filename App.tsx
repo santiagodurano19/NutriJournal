@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './services/supabaseClient';
 import { JournalPortal } from './components/JournalPortal';
-import Dashboard from './components/Dashboard'; 
+import Dashboard from './components/Dashboard'; // Aquí está tu código original
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
@@ -11,26 +11,30 @@ const App: React.FC = () => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (!session) setActiveJournal(null);
     });
     return () => subscription.unsubscribe();
   }, []);
 
-  // VISTA A: No hay sesión
+  // Esta es la función que activa el botón "Entrar ahora"
+  const handleSelect = (id: string) => {
+    setActiveJournal(id);
+  };
+
+  // 1. Si no hay login, mostramos Portal
   if (!session) {
-    return <JournalPortal onJournalSelect={(id) => setActiveJournal(id)} />;
+    return <JournalPortal onJournalSelect={handleSelect} />;
   }
 
-  // VISTA B: Hay sesión pero está en el HUB
+  // 2. Si hay login pero está en el HUB, mostramos el Portal en modo Hub
   if (!activeJournal) {
-    return <JournalPortal onJournalSelect={(id) => setActiveJournal(id)} />;
+    return <JournalPortal onJournalSelect={handleSelect} />;
   }
 
-  // VISTA C: Nutri Journal cargado
+  // 3. SI ELIGIÓ NUTRI, CARGAMOS TU APP ORIGINAL (DASHBOARD)
   if (activeJournal === 'nutri') {
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#0f172a' }}>
-        <Dashboard />
+        <Dashboard /> 
         <button 
           onClick={() => setActiveJournal(null)}
           style={{ position: 'fixed', bottom: '24px', right: '24px', padding: '12px 24px', borderRadius: '40px', backgroundColor: '#1e293b', color: 'white', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', zIndex: 1000, fontWeight: '600' }}
@@ -41,7 +45,7 @@ const App: React.FC = () => {
     );
   }
 
-  return <div style={{ color: 'white', textAlign: 'center', padding: '50px' }}>Cargando ecosistema JOURNAL...</div>;
+  return <div style={{ color: 'white', textAlign: 'center', padding: '50px' }}>Cargando ecosistema...</div>;
 };
 
 export default App;
