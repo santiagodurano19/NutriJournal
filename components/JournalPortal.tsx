@@ -15,7 +15,7 @@ import {
   AlertCircle,
   Loader2
 } from 'lucide-react';
-import { supabase } from './services/supabaseClient';
+import { supabase } from '../services/supabaseClient';
 
 const theme = {
   colors: {
