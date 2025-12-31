@@ -14,13 +14,13 @@ const App: React.FC = () => {
     // 2. Escuchar cambios de sesión (Login/Logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (!session) setActiveJournal(null); // Si sale, reseteamos el Hub
+      if (!session) setActiveJournal(null); 
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  // VISTA A: Login/Registro
+  // VISTA A: Login/Registro (Si no hay sesión)
   if (!session) {
     return <JournalPortal onJournalSelect={(id) => setActiveJournal(id)} />;
   }
@@ -33,25 +33,27 @@ const App: React.FC = () => {
   // VISTA C: Nutri Journal Activo
   if (activeJournal === 'nutri') {
     return (
-      <div className="animate-in fade-in duration-700">
+      <div className="animate-in fade-in duration-700" style={{ minHeight: '100vh', backgroundColor: '#0f172a' }}>
         <Dashboard />
-        {/* Botón flotante para volver al Hub si quieres */}
+        {/* Botón flotante premium para volver al Hub */}
         <button 
           onClick={() => setActiveJournal(null)}
           style={{
-            position: 'fixed', bottom: '20px', right: '20px',
-            backgroundColor: '#1e293b', color: 'white', padding: '10px 20px',
-            borderRadius: '40px', border: '1px solid rgba(255,255,255,0.1)',
-            cursor: 'pointer', zIndex: 1000
+            position: 'fixed', bottom: '32px', right: '32px',
+            backgroundColor: 'rgba(30, 41, 59, 0.8)', color: 'white', 
+            padding: '12px 24px', borderRadius: '40px', 
+            border: '1px solid rgba(255,255,255,0.1)',
+            cursor: 'pointer', zIndex: 1000, backdropFilter: 'blur(10px)',
+            fontWeight: '600', boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
           }}
         >
-          Volver al Hub
+          ← Volver al Hub
         </button>
       </div>
     );
   }
 
-  return <div>Cargando ecosistema JOURNAL...</div>;
+  return <div style={{ color: 'white', textAlign: 'center', padding: '100px' }}>Cargando ecosistema...</div>;
 };
 
 export default App;
