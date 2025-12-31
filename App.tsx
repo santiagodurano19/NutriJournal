@@ -9,7 +9,9 @@ const App: React.FC = () => {
 
   useEffect(() => {
     // Escuchamos la sesión de Supabase
-    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
     
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
@@ -18,14 +20,14 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 1. Si NO hay sesión, mostramos el Portal (Login/Registro)
+  // 1. Si NO hay sesión, mostramos el Portal (Registro/Login)
   if (!session) {
-    return <JournalPortal />;
+    return <JournalPortal onJournalSelect={(id) => setActiveJournal(id)} />;
   }
 
-  // 2. Si hay sesión pero NO ha elegido un Journal, mostramos el HUB
+  // 2. Si hay sesión pero aún NO elige un Journal, mostramos el Portal en vista HUB
   if (!activeJournal) {
-    return <JournalPortal onSelectJournal={(id: string) => setActiveJournal(id)} />;
+    return <JournalPortal onJournalSelect={(id) => setActiveJournal(id)} />;
   }
 
   // 3. Si eligió NutriJournal, mostramos el Dashboard
@@ -34,7 +36,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div style={{ backgroundColor: '#0f172a', minHeight: '100vh', color: 'white', padding: '40px' }}>
+    <div style={{ backgroundColor: '#0f172a', minHeight: '100vh', color: 'white', padding: '40px', textAlign: 'center' }}>
       <h1>Cargando Ecosistema JOURNAL...</h1>
     </div>
   );
