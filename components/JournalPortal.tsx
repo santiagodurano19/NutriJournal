@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Lock, 
@@ -15,18 +14,18 @@ import {
   AlertCircle,
   Loader2
 } from 'lucide-react';
-import { supabase } from '../services/supabaseClient';
+import { supabase } from '../services/supabaseClient'; // Ruta corregida con ../
 
 const theme = {
   colors: {
-    bg: '#0f172a', // Slate-900
+    bg: '#0f172a', 
     surface: 'rgba(30, 41, 59, 0.7)', 
     border: 'rgba(255, 255, 255, 0.08)',
     text: '#f8fafc', 
     textMuted: '#94a3b8', 
-    accent: '#10b981', // Emerald-500
-    primary: '#6366f1', // Indigo-500
-    error: '#fb7185', // Rose-400 para errores elegantes
+    accent: '#10b981', 
+    primary: '#6366f1', 
+    error: '#fb7185', 
   },
   radius: '40px',
   transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
@@ -133,6 +132,7 @@ interface JournalPortalProps {
   onJournalSelect: (journal: string) => void;
 }
 
+// Exportación nombrada para App.tsx
 export const JournalPortal: React.FC<JournalPortalProps> = ({ onJournalSelect }) => {
   const [view, setView] = useState<'auth' | 'hub'>('auth');
   const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
@@ -146,7 +146,15 @@ export const JournalPortal: React.FC<JournalPortalProps> = ({ onJournalSelect })
     confirmPassword: ''
   });
 
-  // Validaciones en tiempo real
+  // Lógica para saltar el login si ya hay sesión
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) setView('hub');
+    };
+    checkSession();
+  }, []);
+
   const passwordsMatch = formData.password === formData.confirmPassword;
   const canSubmit = authMode === 'login' 
     ? (formData.email && formData.password)
@@ -173,7 +181,6 @@ export const JournalPortal: React.FC<JournalPortalProps> = ({ onJournalSelect })
         if (signUpError) throw signUpError;
 
         if (authData?.user) {
-          // Guardar en tabla profiles
           const { error: profileError } = await supabase
             .from('profiles')
             .insert([{ id: authData.user.id, full_name: formData.name }]);
@@ -197,7 +204,7 @@ export const JournalPortal: React.FC<JournalPortalProps> = ({ onJournalSelect })
   };
 
   const renderAuth = () => (
-    <div style={s.card} className="animate-in fade-in zoom-in duration-500">
+    <div style={s.card}>
       <div style={{ textAlign: 'center', marginBottom: '40px' }}>
         <div style={{ 
           width: '72px', height: '72px', backgroundColor: theme.colors.primary, 
@@ -215,7 +222,7 @@ export const JournalPortal: React.FC<JournalPortalProps> = ({ onJournalSelect })
       </div>
 
       {errorMessage && (
-        <div style={s.errorBox} className="animate-in slide-in-from-top-2">
+        <div style={s.errorBox}>
           <AlertCircle size={16} />
           {errorMessage}
         </div>
@@ -235,7 +242,7 @@ export const JournalPortal: React.FC<JournalPortalProps> = ({ onJournalSelect })
           </div>
         )}
 
-        <label style={s.label}>Email Corporativo / Personal</label>
+        <label style={s.label}>Email</label>
         <input 
           style={s.input} 
           type="email" 
@@ -311,7 +318,7 @@ export const JournalPortal: React.FC<JournalPortalProps> = ({ onJournalSelect })
   );
 
   const renderHub = () => (
-    <div className="animate-in fade-in slide-in-from-bottom duration-1000" style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <div style={{ textAlign: 'center', marginBottom: '64px' }}>
         <h2 style={{ fontSize: '48px', fontWeight: '900', letterSpacing: '-0.05em', marginBottom: '16px' }}>
           JOURNAL HUB
@@ -322,11 +329,10 @@ export const JournalPortal: React.FC<JournalPortalProps> = ({ onJournalSelect })
       </div>
 
       <div style={s.hubGrid}>
-        {/* Nutri Journal */}
         <div 
           onClick={() => onJournalSelect('nutri')}
           style={{ ...s.hubCard, borderColor: `${theme.colors.accent}44` }}
-          className="hover:scale-[1.02] active:scale-98 group"
+          className="group"
         >
           <div style={{ 
             width: '64px', height: '64px', backgroundColor: `${theme.colors.accent}15`, 
@@ -347,7 +353,6 @@ export const JournalPortal: React.FC<JournalPortalProps> = ({ onJournalSelect })
           </div>
         </div>
 
-        {/* Money Journal - Locked */}
         <div style={{ ...s.hubCard, opacity: 0.5, cursor: 'not-allowed' }}>
           <div style={{ position: 'absolute', top: '32px', right: '32px' }}>
             <Lock size={20} color={theme.colors.textMuted} />
@@ -365,7 +370,6 @@ export const JournalPortal: React.FC<JournalPortalProps> = ({ onJournalSelect })
           </p>
         </div>
 
-        {/* Training Journal - Locked */}
         <div style={{ ...s.hubCard, opacity: 0.5, cursor: 'not-allowed' }}>
           <div style={{ position: 'absolute', top: '32px', right: '32px' }}>
             <Lock size={20} color={theme.colors.textMuted} />
@@ -394,11 +398,6 @@ export const JournalPortal: React.FC<JournalPortalProps> = ({ onJournalSelect })
       {view === 'auth' ? renderAuth() : renderHub()}
       
       <style>{`
-        .animate-in { animation: animateIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-        @keyframes animateIn {
-          from { opacity: 0; transform: translateY(20px) scale(0.98); }
-          to { opacity: 1; transform: translateY(0) scale(1); }
-        }
         input:focus {
           border-color: ${theme.colors.primary}aa !important;
           background-color: rgba(15, 23, 42, 0.8) !important;
@@ -412,5 +411,3 @@ export const JournalPortal: React.FC<JournalPortalProps> = ({ onJournalSelect })
     </div>
   );
 };
-
-
