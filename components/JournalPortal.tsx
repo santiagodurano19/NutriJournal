@@ -133,7 +133,7 @@ interface JournalPortalProps {
   onJournalSelect: (journal: string) => void;
 }
 
-const JournalPortal: React.FC<JournalPortalProps> = ({ onJournalSelect }) => {
+export const JournalPortal: React.FC<JournalPortalProps> = ({ onJournalSelect }) => {
   const [view, setView] = useState<'auth' | 'hub'>('auth');
   const [authMode, setAuthMode] = useState<'login' | 'register'>('register');
   const [loading, setLoading] = useState(false);
@@ -413,4 +413,4 @@ const JournalPortal: React.FC<JournalPortalProps> = ({ onJournalSelect }) => {
   );
 };
 
-export default JournalPortal;
+
