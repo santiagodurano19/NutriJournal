@@ -2,7 +2,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { UserProfile, MealEntry, NutritionData, PantryItem, GeneratedMealPlan } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GOOGLE_API_NUTRIJOURNAL });
 
 export const analyzeMeal = async (description: string): Promise<NutritionData> => {
   const response = await ai.models.generateContent({
